@@ -140,9 +140,9 @@ class FeedForward(nn.Module):
   def __init__(me, n_embed):
     super().__init__()
     me.net = nn.Sequential(
-      nn.Linear(n_embed, n_embed),
+      nn.Linear(n_embed, n_embed * 4),
       nn.ReLU(),
-      nn.Linear(n_embed, n_embed),
+      nn.Linear(4 * n_embed, n_embed),
     )
 
   def forward(me, x):
