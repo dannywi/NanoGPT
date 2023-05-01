@@ -12,7 +12,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
 n_embed = 32
 
-torch.manual_seed(23489)
+# torch.manual_seed(23489)
 
 # todo: get a proper input file
 # curl -o input.txt https://ocw.mit.edu/ans7870/6/6.006/s08/lecturenotes/files/t8.shakespeare.txt
@@ -155,10 +155,14 @@ class Block(nn.Module):
     head_size = n_embed // n_head
     me.sa = MultiHeadAttention(n_head, head_size)
     me.ffwd = FeedForward(n_embed)
+    me.ln1 = nn.LayerNorm(n_embed)
+    me.ln2 = nn.LayerNorm(n_embed)
 
   def forward(me, x):
-    x = x + me.sa(x)
-    x = x + me.ffwd(x)
+    # contrary to the original Attention Is All You Need paper,
+    # here the normalization is done before the transformation
+    x = x + me.sa(me.ln1(x))
+    x = x + me.ffwd(me.ln2(x))
     return x
 
 class BigramLanguageModel(nn.Module):
@@ -177,6 +181,7 @@ class BigramLanguageModel(nn.Module):
       Block(n_embed, n_head=4),
       Block(n_embed, n_head=4),
       Block(n_embed, n_head=4),
+      nn.LayerNorm(n_embed),
     )
     me.lm_head = nn.Linear(n_embed, vocab_size) # language model
 
