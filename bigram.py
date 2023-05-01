@@ -128,9 +128,12 @@ class MultiHeadAttention(nn.Module):
   def __init__(me, num_heads, head_size):
     super().__init__()
     me.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+    me.proj = nn.Linear(n_embed, n_embed)
 
   def forward(me, x):
-    return torch.cat([h(x) for h in me.heads], dim=-1)
+    out = torch.cat([h(x) for h in me.heads], dim=-1)
+    out = me.proj(out)
+    return out
 
 class FeedForward(nn.Module):
   """ a simple linear layer followed by a ReLU non-linearity """
@@ -138,7 +141,8 @@ class FeedForward(nn.Module):
     super().__init__()
     me.net = nn.Sequential(
       nn.Linear(n_embed, n_embed),
-      nn.ReLU()
+      nn.ReLU(),
+      nn.Linear(n_embed, n_embed),
     )
 
   def forward(me, x):
@@ -153,8 +157,8 @@ class Block(nn.Module):
     me.ffwd = FeedForward(n_embed)
 
   def forward(me, x):
-    x = me.sa(x)
-    x = me.ffwd(x)
+    x = x + me.sa(x)
+    x = x + me.ffwd(x)
     return x
 
 class BigramLanguageModel(nn.Module):
