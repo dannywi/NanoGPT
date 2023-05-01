@@ -144,15 +144,36 @@ class FeedForward(nn.Module):
   def forward(me, x):
     return me.net(x)
 
+class Block(nn.Module):
+  """ Transformer block: communication followed by computation """
+  def __init__(me, n_embed, n_head):
+    super().__init__()
+    head_size = n_embed // n_head
+    me.sa = MultiHeadAttention(n_head, head_size)
+    me.ffwd = FeedForward(n_embed)
+
+  def forward(me, x):
+    x = me.sa(x)
+    x = me.ffwd(x)
+    return x
+
 class BigramLanguageModel(nn.Module):
   def __init__(me):
     super().__init__()
     # each token directly reads off the logits for the next token from a lookup table
     me.token_embedding_table = nn.Embedding(vocab_size, n_embed)
     me.position_embedding_table = nn.Embedding(block_size, n_embed)
+    # var 1: using single head
     # me.sa_head = Head(n_embed) # one head self attention
-    me.sa_heads = MultiHeadAttention(4, n_embed // 4) # 4 heads of 8-dimensional self-attention
-    me.ffwd = FeedForward(n_embed)
+    # var 2: using multiple heads
+    # me.sa_heads = MultiHeadAttention(4, n_embed // 4) # 4 heads of 8-dimensional self-attention
+    # me.ffwd = FeedForward(n_embed)
+    # var 3: using blocks of multiple heads
+    me.blocks = nn.Sequential(
+      Block(n_embed, n_head=4),
+      Block(n_embed, n_head=4),
+      Block(n_embed, n_head=4),
+    )
     me.lm_head = nn.Linear(n_embed, vocab_size) # language model
 
   def forward(me, idx, targets=None):
@@ -162,9 +183,13 @@ class BigramLanguageModel(nn.Module):
     tok_embed = me.token_embedding_table(idx) # (B,T,C)
     pos_embed = me.position_embedding_table(torch.arange(T, device=device)) # T,C
     x = tok_embed + pos_embed # (B,T,C)
+    # var 1: using single head
     # x = me.sa_head(x) # apply one head of self-attention (B,T,C)
-    x = me.sa_heads(x) # apply multi head of self-attention (B,T,C)
-    x = me.ffwd(x) # (B,T,C)
+    # var 2: using multiple heads
+    # x = me.sa_heads(x) # apply multi head of self-attention (B,T,C)
+    # x = me.ffwd(x) # (B,T,C)
+    # var 3: using blocks of multiple heads
+    x = me.blocks(x) # (B,T,C)
     logits = me.lm_head(x) # (B,T,vocab_size)
 
     if targets is None:
