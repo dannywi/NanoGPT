@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from datetime import datetime
+import os
 
 # hyper params
-batch_size = 32 # how many independent sequences to process in parallel
-block_size = 128 # max context length for prediction
+batch_size = 8 # how many independent sequences to process in parallel
+block_size = 32 # max context length for prediction
 max_iters = 5000
 eval_interval = 200
 learning_rate = 3e-3
@@ -15,6 +16,7 @@ n_head = 4
 n_layer = 4
 n_embed = n_head * batch_size
 dropout = 0.2
+save_file = "model.pt"
 
 # torch.manual_seed(23489)
 
@@ -41,28 +43,28 @@ itos = { i:ch for i, ch in enumerate(chars) }
 encode = lambda s: [stoi[c] for c in s]
 decode = lambda l: ''.join([itos[i] for i in l])
 
-print(encode("I love you"))
-print(decode(encode("I love you")))
+# print(encode("I love you"))
+# print(decode(encode("I love you")))
 
 data = torch.tensor(encode(text), dtype=torch.long)
-print(data.shape, data.dtype)
-print(data[:1000])
+# print(data.shape, data.dtype)
+# print(data[:1000])
 
 # Setting up train and validation sets
 split = int(0.9 * len(data))
 train_data = data[:split]
 val_data = data[split:]
 
-print("sample train data encoded, one block:", train_data[:block_size+1])
+# print("sample train data encoded, one block:", train_data[:block_size+1])
 
 # illustrating training on a block
 # we take a sequence of chars (len 1 to block_size), and see what appears next
-x = train_data[:block_size]
-y = train_data[1:1+block_size]
-for t in range(block_size):
-  context = x[:t+1]
-  target = y[t]
-  print(f"When input is {context} then the target is {target}")
+# x = train_data[:block_size]
+# y = train_data[1:1+block_size]
+# for t in range(block_size):
+#   context = x[:t+1]
+#   target = y[t]
+#   print(f"When input is {context} then the target is {target}")
 
 # data loading
 def get_batch(split):
@@ -76,20 +78,20 @@ def get_batch(split):
 
 # here's what gets fed into the neural network
 xb, yb = get_batch('train')
-print('inputs:')
-print(xb.shape)
-print(xb)
-print('targets:')
-print(yb.shape)
-print(yb)
-print('====')
+# print('inputs:')
+# print(xb.shape)
+# print(xb)
+# print('targets:')
+# print(yb.shape)
+# print(yb)
+# print('====')
 
 # illustrating the training again
-for b in range(batch_size):
-  for t in range(block_size):
-    context = xb[b, :t+1]
-    target = yb[b, t]
-    print(f"When input is {context} then the target is {target}")
+# for b in range(batch_size):
+#   for t in range(block_size):
+#     context = xb[b, :t+1]
+#     target = yb[b, t]
+#     print(f"When input is {context} then the target is {target}")
 
 @torch.no_grad()
 def estimate_loss():
@@ -246,23 +248,33 @@ print(decode(gen_result[0].tolist()))
 
 optimizer = torch.optim.AdamW(m.parameters(), lr=1.e-3)
 
-# train the model
-for steps in range(max_iters):
-  # print loss at some interval
-  if steps % eval_interval == 0:
-    losses = estimate_loss()
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+def train_model():
+  # train the model
+  for steps in range(max_iters):
+    # print loss at some interval
+    if steps % eval_interval == 0:
+      losses = estimate_loss()
+      print(f"[{datetime.now().strftime('%H:%M:%S')}] step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
-  # sample a batch of data
-  xb, yb = get_batch('train')
+    # sample a batch of data
+    xb, yb = get_batch('train')
 
-  # evaluate the loss
-  logits, loss = m(xb, yb)
-  optimizer.zero_grad(set_to_none=True)
-  loss.backward()
-  optimizer.step()
+    # evaluate the loss
+    logits, loss = m(xb, yb)
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
 
-print(f"FINAL: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+  print(f"FINAL: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+
+if not os.path.exists(save_file):
+    print(f"==== Saved model file '{save_file}' not found, training new ... ====")
+    train_model()
+    print(f"Saving to: {save_file}")
+    torch.save(m.state_dict(), save_file)
+else:
+    print(f"==== Saved model file '{save_file}' found, loading ... ====")
+    m.load_state_dict(torch.load(save_file))
 
 # retry the generation with trained model
 print("==== GENERATED TEXT ====")
