@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from datetime import datetime
 
 # hyper params
 batch_size = 32 # how many independent sequences to process in parallel
 block_size = 128 # max context length for prediction
 max_iters = 5000
-eval_interval = 500
+eval_interval = 200
 learning_rate = 3e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
@@ -250,7 +251,7 @@ for steps in range(max_iters):
   # print loss at some interval
   if steps % eval_interval == 0:
     losses = estimate_loss()
-    print(f"step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
   # sample a batch of data
   xb, yb = get_batch('train')
@@ -266,5 +267,5 @@ print(f"FINAL: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 # retry the generation with trained model
 print("==== GENERATED TEXT ====")
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-gen_result = m.generate(context, max_new_tokens=1000)
+gen_result = m.generate(context, max_new_tokens=3000)
 print(decode(gen_result[0].tolist()))

@@ -62,7 +62,7 @@ sys     18m31.607s
 ```
 
 ## Todo
-* print time in step logs
+* [DONE] print time in step logs
 * save model
 * default to run from saved model (latest file in folder)
 * option to train, saving new model
