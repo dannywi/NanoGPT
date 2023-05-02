@@ -4,15 +4,15 @@ from torch.nn import functional as F
 
 # hyper params
 batch_size = 32 # how many independent sequences to process in parallel
-block_size = 8 # max context length for prediction
-max_iters = 10000
-eval_interval = 300
-learning_rate = 1e-3
+block_size = 128 # max context length for prediction
+max_iters = 5000
+eval_interval = 500
+learning_rate = 3e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embed = 32
 n_head = 4
-n_layer = 3
+n_layer = 4
+n_embed = n_head * batch_size
 dropout = 0.2
 
 # torch.manual_seed(23489)
