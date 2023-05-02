@@ -1,5 +1,5 @@
 
-# Nano GPT (WIP)
+# Nano GPT
 Following Karpathy's tutorial https://www.youtube.com/watch?v=kCc8FmEb1nY
 
 ## Setups
@@ -17,8 +17,14 @@ pip install -r requirements
 
 ## Running
 ```bash
-python bigram.py
+./run.sh
 ```
+* Saves neural network model to file `model.pt` after training
+* On subsequent run, if the file exists then it loads it and skips training
+* Delete or rename the model file if you want to retrain using other input
+
+## Misc
+* Some explanations and notes on how bits and pieces run are available inside the `.ipynb` file
 
 # Latest results
 ```bash
@@ -62,7 +68,5 @@ sys     18m31.607s
 ```
 
 ## Todo
-* print time in step logs
-* save model
-* default to run from saved model (latest file in folder)
-* option to train, saving new model
+* use formatter
+* put input*.txt and model*.txt to a `data` folder (add to `.gitignore`)
