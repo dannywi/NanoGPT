@@ -4,15 +4,18 @@ from torch.nn import functional as F
 
 # hyper params
 batch_size = 32 # how many independent sequences to process in parallel
-block_size = 8 # max context length for prediction
-max_iters = 10000
-eval_interval = 300
-learning_rate = 1e-3
+block_size = 128 # max context length for prediction
+max_iters = 5000
+eval_interval = 500
+learning_rate = 3e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embed = 32
+n_head = 4
+n_layer = 4
+n_embed = n_head * batch_size
+dropout = 0.2
 
-torch.manual_seed(23489)
+# torch.manual_seed(23489)
 
 # todo: get a proper input file
 # curl -o input.txt https://ocw.mit.edu/ans7870/6/6.006/s08/lecturenotes/files/t8.shakespeare.txt
@@ -109,6 +112,7 @@ class Head(nn.Module):
     me.query = nn.Linear(n_embed, head_size, bias=False)
     me.value = nn.Linear(n_embed, head_size, bias=False)
     me.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
+    me.dropout = nn.Dropout(dropout)
 
   def forward(me, x):
     B,T,C = x.shape
@@ -118,6 +122,7 @@ class Head(nn.Module):
     wei = q @ k.transpose(-2,-1) * C**-0.5 # (B,T,C) @ (B,C,T) -> (B,T,T)
     wei = wei.masked_fill(me.tril[:T,:T]==0, float('-inf')) # (B,T,T)
     wei = F.softmax(wei, dim=-1) # (B,T,T)
+    wei = me.dropout(wei)
     # perform the weighted aggregation of the values
     v = me.value(x) # (B,T,C)
     out = wei @ v # (B,T,T) @ (B,T,C) -> (B,T,C)
@@ -128,21 +133,45 @@ class MultiHeadAttention(nn.Module):
   def __init__(me, num_heads, head_size):
     super().__init__()
     me.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+    me.proj = nn.Linear(n_embed, n_embed)
+    me.dropout = nn.Dropout(dropout)
 
   def forward(me, x):
-    return torch.cat([h(x) for h in me.heads], dim=-1)
+    out = torch.cat([h(x) for h in me.heads], dim=-1)
+    out = me.proj(out)
+    out = me.dropout(out)
+    return out
 
 class FeedForward(nn.Module):
   """ a simple linear layer followed by a ReLU non-linearity """
   def __init__(me, n_embed):
     super().__init__()
     me.net = nn.Sequential(
-      nn.Linear(n_embed, n_embed),
-      nn.ReLU()
+      nn.Linear(n_embed, n_embed * 4),
+      nn.ReLU(),
+      nn.Linear(4 * n_embed, n_embed),
+      nn.Dropout(dropout),
     )
 
   def forward(me, x):
     return me.net(x)
+
+class Block(nn.Module):
+  """ Transformer block: communication followed by computation """
+  def __init__(me, n_embed, n_head):
+    super().__init__()
+    head_size = n_embed // n_head
+    me.sa = MultiHeadAttention(n_head, head_size)
+    me.ffwd = FeedForward(n_embed)
+    me.ln1 = nn.LayerNorm(n_embed)
+    me.ln2 = nn.LayerNorm(n_embed)
+
+  def forward(me, x):
+    # contrary to the original Attention Is All You Need paper,
+    # here the normalization is done before the transformation
+    x = x + me.sa(me.ln1(x))
+    x = x + me.ffwd(me.ln2(x))
+    return x
 
 class BigramLanguageModel(nn.Module):
   def __init__(me):
@@ -150,9 +179,14 @@ class BigramLanguageModel(nn.Module):
     # each token directly reads off the logits for the next token from a lookup table
     me.token_embedding_table = nn.Embedding(vocab_size, n_embed)
     me.position_embedding_table = nn.Embedding(block_size, n_embed)
+    # var 1: using single head
     # me.sa_head = Head(n_embed) # one head self attention
-    me.sa_heads = MultiHeadAttention(4, n_embed // 4) # 4 heads of 8-dimensional self-attention
-    me.ffwd = FeedForward(n_embed)
+    # var 2: using multiple heads
+    # me.sa_heads = MultiHeadAttention(4, n_embed // 4) # 4 heads of 8-dimensional self-attention
+    # me.ffwd = FeedForward(n_embed)
+    # var 3: using blocks of multiple heads
+    me.blocks = nn.Sequential(*[Block(n_embed, n_head=n_head) for _ in range(n_layer)])
+    me.ln_f = nn.LayerNorm(n_embed) # final layer norm
     me.lm_head = nn.Linear(n_embed, vocab_size) # language model
 
   def forward(me, idx, targets=None):
@@ -162,9 +196,14 @@ class BigramLanguageModel(nn.Module):
     tok_embed = me.token_embedding_table(idx) # (B,T,C)
     pos_embed = me.position_embedding_table(torch.arange(T, device=device)) # T,C
     x = tok_embed + pos_embed # (B,T,C)
+    # var 1: using single head
     # x = me.sa_head(x) # apply one head of self-attention (B,T,C)
-    x = me.sa_heads(x) # apply multi head of self-attention (B,T,C)
-    x = me.ffwd(x) # (B,T,C)
+    # var 2: using multiple heads
+    # x = me.sa_heads(x) # apply multi head of self-attention (B,T,C)
+    # x = me.ffwd(x) # (B,T,C)
+    # var 3: using blocks of multiple heads
+    x = me.blocks(x) # (B,T,C)
+    x = me.ln_f(x) # (B,T,C)
     logits = me.lm_head(x) # (B,T,vocab_size)
 
     if targets is None:
