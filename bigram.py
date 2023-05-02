@@ -5,8 +5,8 @@ from datetime import datetime
 import os
 
 # hyper params
-batch_size = 8 # how many independent sequences to process in parallel
-block_size = 32 # max context length for prediction
+batch_size = 32 # how many independent sequences to process in parallel
+block_size = 128 # max context length for prediction
 max_iters = 5000
 eval_interval = 200
 learning_rate = 3e-3
@@ -268,7 +268,7 @@ def train_model():
   print(f"FINAL: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
 if not os.path.exists(save_file):
-    print(f"==== Saved model file '{save_file}' not found, training new ... ====")
+    print(f"==== Saved model file '{save_file}' not found, training new on {device} ... ====")
     train_model()
     print(f"Saving to: {save_file}")
     torch.save(m.state_dict(), save_file)
