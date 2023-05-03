@@ -278,6 +278,6 @@ else:
 
 # retry the generation with trained model
 print("==== GENERATED TEXT ====")
-context = torch.zeros((1, 1), dtype=torch.long, device=device)
+context = torch.randint(0, vocab_size, size=(1, 1), dtype=torch.long, device=device)
 gen_result = m.generate(context, max_new_tokens=3000)
 print(decode(gen_result[0].tolist()))
