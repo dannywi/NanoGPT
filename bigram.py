@@ -66,6 +66,9 @@ val_data = data[split:]
 #   target = y[t]
 #   print(f"When input is {context} then the target is {target}")
 
+def time_str():
+  return datetime.now().strftime('%H:%M:%S')
+
 # data loading
 def get_batch(split):
   # generate a small batch of data of inputs x and targets y
@@ -219,7 +222,7 @@ class BigramLanguageModel(nn.Module):
       loss = F.cross_entropy(logits, targets)
 
     return logits, loss
-  
+
   def generate(me, idx, max_new_tokens):
     # idx is (B, T) array of indices in the current context
     for _ in range(max_new_tokens):
@@ -254,7 +257,7 @@ def train_model():
     # print loss at some interval
     if steps % eval_interval == 0:
       losses = estimate_loss()
-      print(f"[{datetime.now().strftime('%H:%M:%S')}] step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+      print(f"[{time_str()}] step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}", flush=True)
 
     # sample a batch of data
     xb, yb = get_batch('train')
@@ -265,19 +268,21 @@ def train_model():
     loss.backward()
     optimizer.step()
 
-  print(f"FINAL: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+  print(f"[{time_str()}] FINAL: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}", flush=True)
 
 if not os.path.exists(save_file):
-    print(f"==== Saved model file '{save_file}' not found, training new on {device} ... ====")
+    print(f"[{time_str()}] ==== Saved model file '{save_file}' not found, training new on {device} ... ====", flush=True)
     train_model()
-    print(f"Saving to: {save_file}")
+    print(f"[{time_str()}] Saving to: {save_file}", flush=True)
     torch.save(m.state_dict(), save_file)
 else:
-    print(f"==== Saved model file '{save_file}' found, loading ... ====")
+    print(f"[{time_str()}] ==== Saved model file '{save_file}' found, loading ... ====", flush=True)
     m.load_state_dict(torch.load(save_file))
 
 # retry the generation with trained model
-print("==== GENERATED TEXT ====")
-context = torch.randint(0, vocab_size, size=(1, 1), dtype=torch.long, device=device)
-gen_result = m.generate(context, max_new_tokens=3000)
-print(decode(gen_result[0].tolist()))
+n_loop = 5
+for i in range(n_loop):
+    print(f"[{time_str()}] ==== GENERATED TEXT {i+1} ====", flush=True)
+    context = torch.randint(0, vocab_size, size=(1, 1), dtype=torch.long, device=device)
+    gen_result = m.generate(context, max_new_tokens=500)
+    print(decode(gen_result[0].tolist()), flush=True)
